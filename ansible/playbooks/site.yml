@@ -1,0 +1,9 @@
+---
+- name: Configuración base
+  ansible.builtin.import_playbook: base.yml
+
+- name: Servidor web
+  ansible.builtin.import_playbook: web.yml
+
+- name: Agente de Zabbix
+  ansible.builtin.import_playbook: zabbix_agent.yml

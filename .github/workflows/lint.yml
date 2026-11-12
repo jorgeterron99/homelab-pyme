@@ -1,0 +1,31 @@
+name: Lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ansible:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar Ansible y ansible-lint
+        run: |
+          pip install ansible ansible-lint
+          ansible-galaxy collection install community.general
+      - name: Comprobar sintaxis
+        working-directory: ansible
+        run: ansible-playbook playbooks/site.yml --syntax-check
+      - name: ansible-lint
+        working-directory: ansible
+        run: ansible-lint playbooks/
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: shellcheck scripts/*.sh

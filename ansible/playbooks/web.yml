@@ -1,0 +1,84 @@
+---
+- name: Servidor web con nginx y HTTPS autofirmado
+  hosts: web
+  become: true
+  vars:
+    server_name: srv-web.pyme.lan
+    cert_dir: /etc/nginx/ssl
+  tasks:
+    - name: Instalar nginx y openssl
+      ansible.builtin.apt:
+        name:
+          - nginx
+          - openssl
+        state: present
+        update_cache: true
+
+    - name: Crear directorio de certificados
+      ansible.builtin.file:
+        path: "{{ cert_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Generar certificado autofirmado (laboratorio)
+      ansible.builtin.command:
+        cmd: >
+          openssl req -x509 -nodes -days 365 -newkey rsa:2048
+          -keyout {{ cert_dir }}/{{ server_name }}.key
+          -out {{ cert_dir }}/{{ server_name }}.crt
+          -subj "/CN={{ server_name }}"
+        creates: "{{ cert_dir }}/{{ server_name }}.crt"
+      notify: Recargar nginx
+
+    - name: Desplegar configuración del sitio
+      ansible.builtin.template:
+        src: nginx-site.conf.j2
+        dest: /etc/nginx/sites-available/pyme.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Recargar nginx
+
+    - name: Activar el sitio
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/pyme.conf
+        dest: /etc/nginx/sites-enabled/pyme.conf
+        state: link
+      notify: Recargar nginx
+
+    - name: Desactivar el sitio por defecto
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Recargar nginx
+
+    - name: Desplegar página de inicio
+      ansible.builtin.copy:
+        content: "<h1>{{ server_name }}</h1><p>Desplegado con Ansible</p>\n"
+        dest: /var/www/html/index.html
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Abrir puertos 80 y 443 en UFW
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "80"
+        - "443"
+
+    - name: Asegurar nginx activo
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Recargar nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
